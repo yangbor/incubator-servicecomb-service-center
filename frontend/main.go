@@ -20,13 +20,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/url"
 
-	"github.com/apache/incubator-servicecomb-service-center/frontend/schema"
 	"github.com/astaxie/beego"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
 )
+
+type Config struct {
+	frontendAddr string
+	scAddr       string
+}
 
 func main() {
 	frontendIp := beego.AppConfig.String("frontend_host_ip")
@@ -37,43 +38,13 @@ func main() {
 
 	// command line flags
 	port := flag.Int("port", frontendPort, "port to serve on")
-	dir := flag.String("directory", "app/", "directory of web files")
-
 	flag.Parse()
 
-	e := echo.New()
-	// handle all requests by serving a file of the same name
-	e.Static("/", *dir)
-
-	e.Any("/testSchema/", schema.SchemaHandleFunc)
-
-	// setup proxy for requests to service center
-	scAddr := fmt.Sprintf("http://%s:%d", scIp, scPort)
-	scUrl, err := url.Parse(scAddr)
-	log.Printf("sc addr:%s", scAddr)
-	if err != nil {
-		log.Fatalf("Error parsing service center address:%s, err:%s", scAddr, err)
-	}
-	targets := []*middleware.ProxyTarget{
-		{
-			URL: scUrl,
-		},
-	}
-	g := e.Group("/sc")
-	balancer := middleware.NewRoundRobinBalancer(targets)
-	pcfg := middleware.ProxyConfig{
-		Balancer: balancer,
-		Skipper:  middleware.DefaultSkipper,
-		Rewrite: map[string]string{
-			"/sc/*": "/$1",
-		},
-	}
-	g.Use(middleware.ProxyWithConfig(pcfg))
+	cfg := Config{}
+	cfg.scAddr = fmt.Sprintf("http://%s:%d", scIp, scPort)
+	cfg.frontendAddr = fmt.Sprintf("%s:%d", frontendIp, *port)
 
 	// run frontend web server
 	log.Printf("Running on port %d\n", *port)
-	addr := fmt.Sprintf("%s:%d", frontendIp, *port)
-
-	// this call blocks -- the progam runs here forever
-	log.Printf("Error: %s", e.Start(addr))
+	Serve(cfg)
 }
