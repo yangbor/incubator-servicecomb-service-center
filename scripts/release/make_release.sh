@@ -96,7 +96,7 @@ build_linux(){
 
     ## Download the frontend dependencies using bower
     cd app
-    bower install
+    bower install --allow-root
 
     cd ../..
 
